@@ -10,8 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: install weir
+      # the modules track weir's main until a release carries what they
+      # need (semver: [<Ord n>], unreleased as of v0.0.78) — build weir
+      # from source here; once v0.0.79 ships, replace these three steps
+      # with `curl -fsSL https://weir.sh/install.sh | sh`
+      - uses: actions/checkout@v4
+        with:
+          repository: weir-shell/weir
+          path: weir
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: build weir from main
         run: |
-          curl -fsSL https://weir.sh/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          dotnet publish weir/src/Weir -c Release -r linux-x64
+          echo "$PWD/weir/src/Weir/bin/Release/net10.0/linux-x64/publish" >> "$GITHUB_PATH"
       - run: weir tools/test.weir

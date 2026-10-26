@@ -33,7 +33,7 @@ by sha, and update on purpose.
 
 | name | since | what |
 |---|---|---|
-| semver | v0.1.0 | Semantic Versioning 2.0.0: `parse`/`tryParse`, `toString`, `isPrerelease`, `core`, `bumpMajor`/`bumpMinor`/`bumpPatch`; `[<Ord n>]` on the key — `Seq.sort`, `<`, `min`/`max` follow the spec's precedence, build metadata rides the record unnumbered |
+| semver | v0.1.0 | weir ≥ v0.0.79. Semantic Versioning 2.0.0: `parse`/`tryParse`, `toString`, `isPrerelease`, `core`, `bumpMajor`/`bumpMinor`/`bumpPatch`; `[<Ord n>]` on the key — `Seq.sort`, `<`, `min`/`max` follow the spec's precedence, build metadata rides the record unnumbered |
 
 ## Versions
 
@@ -44,6 +44,9 @@ reviewing the diff of the vendored file. The tag list is the
 changelog: each tag's GitHub release notes name the modules it
 touched. There is no `latest`, no ranges and no branch to track —
 point at a tag.
+
+A module names the weir release it needs (`[<Ord n>]` arrived after
+v0.0.78); until that release exists, CI builds weir from its `main`.
 
 ## Contributing
 
