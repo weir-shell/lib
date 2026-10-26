@@ -1,0 +1,79 @@
+#!/usr/bin/env weir
+// Runs every module's checks against the weir on PATH (CI installs it):
+//
+//     weir tools/test.weir
+//
+// Per module (a *.weir at the repo root): weir check, weir fmt --check,
+// no `import` line (a library module is self-contained), and a
+// tests/<name>.weir. Per test: weir check, then the test itself exits 0.
+// A test without a module is an orphan. One line per check; the red
+// count fails the run.
+
+let root = Self.scriptPath |> Path.dir |> Path.dir
+
+// a command's run as a verdict: None is green, Some carries its output
+let verdict r =
+    if r.exitCode == 0 then
+        None
+    else
+        Some (r.stderr |> Seq.append r.stdout |> Str.join " | ")
+
+let importLines m =
+    File.read m
+    |> Seq.indexed
+    |> Seq.where (fun (_, l) -> Str.startsWith "import " (Str.trimStart l))
+    |> Seq.map (fun (i, _) -> show (i + 1))
+    |> Seq.freeze
+
+let moduleRows m =
+    let n = Path.stem m
+    let chk = weir check $m | complete
+    let fmt = weir fmt --check $m | complete
+    let imports = importLines m
+
+    let contained =
+        if Seq.isEmpty imports then
+            None
+        else
+            Some $"imports at line {imports |> Str.join ", "} — a library module imports nothing, not weir: and not a relative file"
+
+    let tested =
+        if File.exists $"tests/{n}.weir" then
+            None
+        else
+            Some $"no tests/{n}.weir — every module ships its test"
+
+    [ ($"check {m}", verdict chk)
+      ($"fmt {m}", verdict fmt)
+      ($"self-contained {m}", contained)
+      ($"test for {m}", tested) ]
+
+let testRows t =
+    let n = Path.stem t
+
+    if File.exists $"{n}.weir" then
+        let chk = weir check $t | complete
+        let run = weir $t | complete
+        [ ($"check {t}", verdict chk); ($"run {t}", verdict run) ]
+    else
+        [ ($"module for {t}", Some $"orphan: no {n}.weir at the root") ]
+
+within cd root
+    let ver = weir --version | line
+    print $"weir {ver}"
+    let modules = Path.glob "*.weir" |> Seq.freeze
+    let tests = Path.glob "tests/*.weir" |> Seq.freeze
+
+    let rows =
+        (tests |> Seq.collect testRows)
+        |> Seq.append (modules |> Seq.collect moduleRows)
+        |> Seq.freeze
+
+    for (label, v) in rows do
+        match v with
+        | None -> print $"ok    {label}"
+        | Some why -> print $"FAIL  {label}: {why}"
+
+    let reds = rows |> Seq.choose snd |> Seq.length
+    if reds > 0 then fail $"{reds} check(s) failed"
+    print $"ok: {modules |> Seq.length} modules"
