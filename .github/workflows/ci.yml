@@ -24,5 +24,8 @@ jobs:
       - name: build weir from main
         run: |
           dotnet publish weir/src/Weir -c Release -r linux-x64
-          echo "$PWD/weir/src/Weir/bin/Release/net10.0/linux-x64/publish" >> "$GITHUB_PATH"
+          mkdir -p "$HOME/.local/bin"
+          cp weir/src/Weir/bin/Release/net10.0/linux-x64/publish/Weir "$HOME/.local/bin/weir"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/weir" --version
       - run: weir tools/test.weir
