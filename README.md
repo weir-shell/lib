@@ -33,7 +33,7 @@ by sha, and update on purpose.
 
 | name | since | what |
 |---|---|---|
-| semver | v0.1.0 | Semantic Versioning 2.0.0: `parse`/`tryParse`, `toString`, `build`, `isPrerelease`, `core`, `bumpMajor`/`bumpMinor`/`bumpPatch`; `[<Ord>]` — `Seq.sort`, `<`, `min`/`max` follow the spec's precedence |
+| semver | v0.1.0 | Semantic Versioning 2.0.0: `parse`/`tryParse`, `toString`, `isPrerelease`, `core`, `bumpMajor`/`bumpMinor`/`bumpPatch`; `[<Ord n>]` on the key — `Seq.sort`, `<`, `min`/`max` follow the spec's precedence, build metadata rides the record unnumbered |
 
 ## Versions
 

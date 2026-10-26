@@ -5,7 +5,7 @@ import "../semver.weir" as SemVer
 let expect name got want =
     if got <> want then fail $"{name}: got {got}, want {want}"
 
-// parse and render round-trip (build metadata excluded — see below)
+// parse and render round-trip, build metadata included
 let table = [
     "0.0.0"
     "1.2.3"
@@ -19,6 +19,10 @@ let table = [
     "1.0.0-rc.1"
     "999999999999999999.0.0"
     "1.0.0-123456789012345678"
+    "1.0.0+20130313144700"
+    "1.0.0-alpha+001"
+    "1.0.0-beta+exp.sha.5114f85"
+    "1.2.3-rc.1+exp.sha"
 ]
 for s in table do expect $"round-trip {s}" (SemVer.toString (SemVer.parse s)) s
 
@@ -29,12 +33,19 @@ expect "patch" v.patch 3
 expect "isPrerelease" (SemVer.isPrerelease v) true
 expect "isPrerelease release" (SemVer.isPrerelease (SemVer.parse "1.2.3")) false
 
-// build metadata: validated, dropped from the value, read by `build`
-expect "build dropped" (SemVer.toString (SemVer.parse "1.0.0-alpha+001")) "1.0.0-alpha"
-expect "build read" (SemVer.build "1.0.0+20130313144700") (Some "20130313144700")
-expect "build with dash" (SemVer.build "1.0.0-beta+exp.sha.5114f85") (Some "exp.sha.5114f85")
-expect "no build" (SemVer.build "1.0.0") None
-expect "eq modulo build" (SemVer.parse "1.0.0+a" == SemVer.parse "1.0.0+b") true
+// build metadata: kept in the value, ignored for precedence (§10) — the
+// same precedence, not the same value
+expect "build" (SemVer.parse "1.0.0+20130313144700").build (Some "20130313144700")
+expect "build with dash" (SemVer.parse "1.0.0-beta+exp.sha.5114f85").build (Some "exp.sha.5114f85")
+expect "no build" (SemVer.parse "1.0.0").build None
+let ba = SemVer.parse "1.0.0+a"
+let bb = SemVer.parse "1.0.0+b"
+expect "same precedence: not <" (ba < bb) false
+expect "same precedence: not >" (bb < ba) false
+expect "same precedence: <=" (ba <= bb && bb <= ba) true
+expect "not ==" (ba == bb) false
+expect "sort keeps input order" ([bb; ba] |> Seq.sort |> Seq.map SemVer.toString |> Str.join " ") "1.0.0+b 1.0.0+a"
+expect "min is the first" (Seq.min [bb; ba] |> SemVer.toString) "1.0.0+b"
 
 // precedence: the spec's own list (semver.org §11), ascending
 let spec = [
@@ -66,8 +77,9 @@ let more =
 let moreWant = ["1.0.0-alpha.1"; "1.0.0-alpha-1"; "1.0.0-rc.1"; "1.0.0"; "1.0.1-alpha"; "1.9.0"; "1.10.0"; "2.0.0-0"]
 if not (Seq.equal more moreWant) then fail $"sort: {more}"
 
-// bumps clear the lower parts and the prerelease; core is the release
-let pre = SemVer.parse "1.2.3-rc.1"
+// bumps clear the lower parts, the prerelease and the build metadata;
+// core is the release
+let pre = SemVer.parse "1.2.3-rc.1+exp.sha"
 expect "bumpMajor" (SemVer.toString (SemVer.bumpMajor pre)) "2.0.0"
 expect "bumpMinor" (SemVer.toString (SemVer.bumpMinor pre)) "1.3.0"
 expect "bumpPatch" (SemVer.toString (SemVer.bumpPatch pre)) "1.2.4"

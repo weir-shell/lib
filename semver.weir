@@ -4,22 +4,24 @@ module SemVer
 // no file, command, env or clock reaches any member.
 
 /// The prerelease. `Pre` carries the ORDER KEY built by `parse` (not the
-/// text — `toString` decodes it); `Release` is no prerelease. Declared in
-/// this order so a prerelease sorts below its release.
-[<Ord>]
+/// text — `toString` decodes it); `Release` is no prerelease. Numbered so
+/// a prerelease sorts below its release.
 type Pre =
-    | Pre of string
-    | Release
+    | [<Ord 1>] Pre of string
+    | [<Ord 2>] Release
 
 /// A parsed version. Ordered by major, minor, patch, then the prerelease
-/// key — the spec's precedence. Build metadata is not a field: it never
-/// takes part in precedence (`SemVer.build` reads it from the text).
-[<Ord>]
+/// key — the spec's precedence. `build` is unnumbered: build metadata
+/// is ignored when determining precedence (§10), so two versions that
+/// differ only in build metadata have the same precedence — neither is
+/// `<` the other and `Seq.sort` keeps their input order — but they are
+/// not `==`: equality is whole-value.
 type SemVer = {
-    major: int
-    minor: int
-    patch: int
-    pre: Pre
+    [<Ord 1>] major: int
+    [<Ord 2>] minor: int
+    [<Ord 3>] patch: int
+    [<Ord 4>] pre: Pre
+    build: Option<string>
 }
 
 // the key alphabet [D:lib-semver]: every marker sorts below every
@@ -88,8 +90,8 @@ let pure core3 text =
     | [a; b; c] -> (coreNum "major" a, coreNum "minor" b, coreNum "patch" c)
     | _ -> fail $"'{text}' is not MAJOR.MINOR.PATCH"
 
-/// Parse a version; raises naming what is wrong. Build metadata is
-/// validated and dropped (`build` reads it).
+/// Parse a version; raises naming what is wrong — the part first (core,
+/// then prerelease, then build), then the identifier.
 let parse : string -> SemVer
 
 let pure parse s =
@@ -98,31 +100,25 @@ let pure parse s =
     let (major, minor, patch) = core3 c
     b |> Option.iter buildCheck
     let pre = match p with | Some t -> Pre (preKey t) | None -> Release
-    { major = major; minor = minor; patch = patch; pre = pre }
+    { major = major; minor = minor; patch = patch; pre = pre; build = b }
 
 /// `parse` as an Option: `None` for anything `parse` refuses.
 let tryParse : string -> Option<SemVer>
 
 let pure tryParse s = parse s |> try
 
-/// Render `MAJOR.MINOR.PATCH[-PRERELEASE]`; `toString (parse s) == s`
-/// for every `s` without build metadata.
+/// Render `MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]`; `toString (parse s) == s`.
 let toString : SemVer -> string
 
 let pure toString v =
     let core = $"{v.major}.{v.minor}.{v.patch}"
-    match v.pre with
-    | Release -> core
-    | Pre k -> $"{core}-{preText k}"
-
-/// The build metadata of a version text (`Some "sha.5114f85"` for
-/// `1.0.0+sha.5114f85`); the text must parse.
-let build : string -> Option<string>
-
-let pure build s =
-    let _checked = parse s
-    let (_c, _p, b) = parts s
-    b
+    let tagged =
+        match v.pre with
+        | Release -> core
+        | Pre k -> $"{core}-{preText k}"
+    match v.build with
+    | Some b -> $"{tagged}+{b}"
+    | None -> tagged
 
 /// True when the version has a prerelease.
 let isPrerelease : SemVer -> bool
@@ -132,22 +128,24 @@ let pure isPrerelease v =
     | Pre _ -> true
     | Release -> false
 
-/// The release this version precedes or is: the prerelease dropped.
+/// The release this version precedes or is: the prerelease and the
+/// build metadata dropped.
 let core : SemVer -> SemVer
 
-let pure core v = { v with pre = Release }
+let pure core v = { v with pre = Release; build = None }
 
-/// Next major: minor and patch reset, prerelease dropped.
+/// Next major: minor and patch reset, prerelease and build metadata
+/// dropped.
 let bumpMajor : SemVer -> SemVer
 
-let pure bumpMajor v = { major = v.major + 1; minor = 0; patch = 0; pre = Release }
+let pure bumpMajor v = { major = v.major + 1; minor = 0; patch = 0; pre = Release; build = None }
 
-/// Next minor: patch reset, prerelease dropped.
+/// Next minor: patch reset, prerelease and build metadata dropped.
 let bumpMinor : SemVer -> SemVer
 
-let pure bumpMinor v = { v with minor = v.minor + 1; patch = 0; pre = Release }
+let pure bumpMinor v = { v with minor = v.minor + 1; patch = 0; pre = Release; build = None }
 
-/// Next patch: prerelease dropped.
+/// Next patch: prerelease and build metadata dropped.
 let bumpPatch : SemVer -> SemVer
 
-let pure bumpPatch v = { v with patch = v.patch + 1; pre = Release }
+let pure bumpPatch v = { v with patch = v.patch + 1; pre = Release; build = None }
