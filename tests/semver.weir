@@ -1,6 +1,6 @@
 #!/usr/bin/env weir
 // tests/semver.weir — the library runner runs it; exit 0 is the pass
-import "../semver.weir" as SemVer
+import "../modules/semver.weir" as SemVer
 
 let expect name got want =
     if got <> want then fail $"{name}: got {got}, want {want}"

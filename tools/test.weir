@@ -3,7 +3,7 @@
 //
 //     weir tools/test.weir
 //
-// Per module (a *.weir at the repo root): weir check, weir fmt --check,
+// Per module (modules/<name>.weir): weir check, weir fmt --check,
 // no `import` line (a library module is self-contained), and a
 // tests/<name>.weir. Per test: weir check, then the test itself exits 0.
 // A test without a module is an orphan. One line per check; the red
@@ -51,17 +51,17 @@ let moduleRows m =
 let testRows t =
     let n = Path.stem t
 
-    if File.exists $"{n}.weir" then
+    if File.exists $"modules/{n}.weir" then
         let chk = weir check $t | complete
         let run = weir $t | complete
         [ ($"check {t}", verdict chk); ($"run {t}", verdict run) ]
     else
-        [ ($"module for {t}", Some $"orphan: no {n}.weir at the root") ]
+        [ ($"module for {t}", Some $"orphan: no modules/{n}.weir") ]
 
 within cd root
     let ver = weir --version | line
     print $"weir {ver}"
-    let modules = Path.glob "*.weir" |> Seq.freeze
+    let modules = Path.glob "modules/*.weir" |> Seq.freeze
     let tests = Path.glob "tests/*.weir" |> Seq.freeze
 
     let rows =

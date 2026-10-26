@@ -12,7 +12,7 @@ weir add module semver@v0.1.0
 ```
 
 That is the same as
-`weir add module github.com/weir-shell/lib//semver.weir@v0.1.0 --as semver`
+`weir add module github.com/weir-shell/lib//modules/semver.weir@v0.1.0 --as semver`
 — the short spelling is sugar; weir expands it and does what `add
 module` always does. The module lands in `.weir/modules/semver.weir`,
 the lock (`.weir/lock.json`) records the raw URL at the full commit

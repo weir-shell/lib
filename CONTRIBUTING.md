@@ -7,7 +7,7 @@ enforce, stated here so an author never discovers it at a user's
 
 ## The module bar
 
-- **One file, `<name>.weir`, at the repo root**, starting with
+- **One file, `modules/<name>.weir`**, starting with
   `module` (or `module Name`). A module is declarations only — a
   command or a bare expression at import is refused by weir, so this
   is stated, not policed.
@@ -40,7 +40,7 @@ enforce, stated here so an author never discovers it at a user's
   take a name the library already uses; the long spelling would still
   work, but the bare one would not.
 - **A test, `tests/<name>.weir`.** It starts with
-  `import "../<name>.weir" as X`, asserts with `fail`, and exits 0 on
+  `import "../modules/<name>.weir" as X`, asserts with `fail`, and exits 0 on
   green. Both files must be `weir check` clean and `weir fmt --check`
   clean.
 - **The PR adds a row to README's table** (`name | since | what`),
