@@ -1,0 +1,153 @@
+module SemVer
+
+// Semantic Versioning 2.0.0 (semver.org), precedence included. Pure:
+// no file, command, env or clock reaches any member.
+
+/// The prerelease. `Pre` carries the ORDER KEY built by `parse` (not the
+/// text — `toString` decodes it); `Release` is no prerelease. Declared in
+/// this order so a prerelease sorts below its release.
+[<Ord>]
+type Pre =
+    | Pre of string
+    | Release
+
+/// A parsed version. Ordered by major, minor, patch, then the prerelease
+/// key — the spec's precedence. Build metadata is not a field: it never
+/// takes part in precedence (`SemVer.build` reads it from the text).
+[<Ord>]
+type SemVer = {
+    major: int
+    minor: int
+    patch: int
+    pre: Pre
+}
+
+// the key alphabet [D:lib-semver]: every marker sorts below every
+// identifier byte (`-` 0x2D is the lowest), and the number marker sorts
+// below the word marker, so ordinal order on keys is the spec's order
+let digits = 18
+let sep = ","
+let numMark = "#"
+let wordMark = "@"
+
+// one identifier -> its key, or the refusal naming the identifier
+let pure identKey what id =
+    match id with
+    | "" -> fail $"{what}: empty identifier"
+    | Regex @"^0$|^[1-9][0-9]{0,17}$" () -> numMark + Str.replicate (digits - Str.length id) "0" + id
+    | Regex @"^[0-9]+$" () ->
+        if Str.startsWith "0" id then fail $"{what}: numeric identifier '{id}' has a leading zero"
+        else fail $"{what}: numeric identifier '{id}' is longer than {digits} digits"
+    | Regex @"^[0-9A-Za-z-]+$" () -> wordMark + id
+    | _ -> fail $"{what}: identifier '{id}' has a character outside [0-9A-Za-z-]"
+
+let pure preKey text =
+    text |> Str.split "." |> Seq.map (identKey "prerelease") |> Str.join sep
+
+// a key -> the text it was built from
+let pure preText key =
+    key
+    |> Str.split sep
+    |> Seq.map (fun k ->
+        match k with
+        | Regex @"^#0*([0-9]+)$" n -> n
+        | Regex @"^@([0-9A-Za-z-]+)$" w -> w
+        | _ -> fail $"not a prerelease key: '{k}'")
+    |> Str.join "."
+
+let pure coreNum what s =
+    match s with
+    | Regex @"^0$|^[1-9][0-9]{0,17}$" () -> Str.toInt s
+    | Regex @"^[0-9]+$" () ->
+        if Str.startsWith "0" s then fail $"{what} '{s}' has a leading zero"
+        else fail $"{what} '{s}' is longer than {digits} digits"
+    | _ -> fail $"{what} '{s}' is not a number"
+
+let pure buildCheck text =
+    text
+    |> Str.split "."
+    |> Seq.iter (fun id ->
+        if id == "" then fail "build: empty identifier"
+        elif not (Str.isMatch @"^[0-9A-Za-z-]+$" id) then fail $"build: identifier '{id}' has a character outside [0-9A-Za-z-]")
+
+// the text's three parts: core, prerelease (after the first `-`), build
+// (after the first `+`) — `+` is cut first, so a `-` inside build stays
+let pure parts s =
+    let (version, build) =
+        match Str.trySplitOnce "+" s with
+        | Some (v, b) -> (v, Some b)
+        | None -> (s, None)
+    let (core, pre) =
+        match Str.trySplitOnce "-" version with
+        | Some (c, p) -> (c, Some p)
+        | None -> (version, None)
+    (core, pre, build)
+
+let pure core3 text =
+    match Str.split "." text with
+    | [a; b; c] -> (coreNum "major" a, coreNum "minor" b, coreNum "patch" c)
+    | _ -> fail $"'{text}' is not MAJOR.MINOR.PATCH"
+
+/// Parse a version; raises naming what is wrong. Build metadata is
+/// validated and dropped (`build` reads it).
+let parse : string -> SemVer
+
+let pure parse s =
+    if s == "" then fail "empty version"
+    let (c, p, b) = parts s
+    let (major, minor, patch) = core3 c
+    b |> Option.iter buildCheck
+    let pre = match p with | Some t -> Pre (preKey t) | None -> Release
+    { major = major; minor = minor; patch = patch; pre = pre }
+
+/// `parse` as an Option: `None` for anything `parse` refuses.
+let tryParse : string -> Option<SemVer>
+
+let pure tryParse s = parse s |> try
+
+/// Render `MAJOR.MINOR.PATCH[-PRERELEASE]`; `toString (parse s) == s`
+/// for every `s` without build metadata.
+let toString : SemVer -> string
+
+let pure toString v =
+    let core = $"{v.major}.{v.minor}.{v.patch}"
+    match v.pre with
+    | Release -> core
+    | Pre k -> $"{core}-{preText k}"
+
+/// The build metadata of a version text (`Some "sha.5114f85"` for
+/// `1.0.0+sha.5114f85`); the text must parse.
+let build : string -> Option<string>
+
+let pure build s =
+    let _checked = parse s
+    let (_c, _p, b) = parts s
+    b
+
+/// True when the version has a prerelease.
+let isPrerelease : SemVer -> bool
+
+let pure isPrerelease v =
+    match v.pre with
+    | Pre _ -> true
+    | Release -> false
+
+/// The release this version precedes or is: the prerelease dropped.
+let core : SemVer -> SemVer
+
+let pure core v = { v with pre = Release }
+
+/// Next major: minor and patch reset, prerelease dropped.
+let bumpMajor : SemVer -> SemVer
+
+let pure bumpMajor v = { major = v.major + 1; minor = 0; patch = 0; pre = Release }
+
+/// Next minor: patch reset, prerelease dropped.
+let bumpMinor : SemVer -> SemVer
+
+let pure bumpMinor v = { v with minor = v.minor + 1; patch = 0; pre = Release }
+
+/// Next patch: prerelease dropped.
+let bumpPatch : SemVer -> SemVer
+
+let pure bumpPatch v = { v with patch = v.patch + 1; pre = Release }

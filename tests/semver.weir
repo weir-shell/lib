@@ -1,0 +1,106 @@
+#!/usr/bin/env weir
+// tests/semver.weir — the library runner runs it; exit 0 is the pass
+import "../semver.weir" as SemVer
+
+let expect name got want =
+    if got <> want then fail $"{name}: got {got}, want {want}"
+
+// parse and render round-trip (build metadata excluded — see below)
+let table = [
+    "0.0.0"
+    "1.2.3"
+    "10.20.30"
+    "1.0.0-alpha"
+    "1.0.0-alpha.1"
+    "1.0.0-0.3.7"
+    "1.0.0-x.7.z.92"
+    "1.0.0-x-y-z.--"
+    "1.0.0-alpha-a.b-c-somethinglong"
+    "1.0.0-rc.1"
+    "999999999999999999.0.0"
+    "1.0.0-123456789012345678"
+]
+for s in table do expect $"round-trip {s}" (SemVer.toString (SemVer.parse s)) s
+
+let v = SemVer.parse "1.2.3-beta.4"
+expect "major" v.major 1
+expect "minor" v.minor 2
+expect "patch" v.patch 3
+expect "isPrerelease" (SemVer.isPrerelease v) true
+expect "isPrerelease release" (SemVer.isPrerelease (SemVer.parse "1.2.3")) false
+
+// build metadata: validated, dropped from the value, read by `build`
+expect "build dropped" (SemVer.toString (SemVer.parse "1.0.0-alpha+001")) "1.0.0-alpha"
+expect "build read" (SemVer.build "1.0.0+20130313144700") (Some "20130313144700")
+expect "build with dash" (SemVer.build "1.0.0-beta+exp.sha.5114f85") (Some "exp.sha.5114f85")
+expect "no build" (SemVer.build "1.0.0") None
+expect "eq modulo build" (SemVer.parse "1.0.0+a" == SemVer.parse "1.0.0+b") true
+
+// precedence: the spec's own list (semver.org §11), ascending
+let spec = [
+    "1.0.0-alpha"
+    "1.0.0-alpha.1"
+    "1.0.0-alpha.beta"
+    "1.0.0-beta"
+    "1.0.0-beta.2"
+    "1.0.0-beta.11"
+    "1.0.0-rc.1"
+    "1.0.0"
+]
+let versions = spec |> Seq.map SemVer.parse |> Seq.freeze
+let shuffled = [versions[7]; versions[2]; versions[5]; versions[0]; versions[6]; versions[1]; versions[4]; versions[3]]
+let sorted = shuffled |> Seq.sort |> Seq.map SemVer.toString
+if not (Seq.equal sorted spec) then fail $"sort: {sorted}"
+versions
+    |> Seq.pairwise
+    |> Seq.iter (fun (a, b) -> if not (a < b) then fail $"order: {SemVer.toString a} < {SemVer.toString b}")
+expect "min" (Seq.min versions |> SemVer.toString) "1.0.0-alpha"
+expect "max" (Seq.max versions |> SemVer.toString) "1.0.0"
+
+// the core orders numerically; a prerelease sits below ITS release only
+let more =
+    ["2.0.0-0"; "1.10.0"; "1.0.1-alpha"; "1.0.0"; "1.9.0"; "1.0.0-rc.1"; "1.0.0-alpha.1"; "1.0.0-alpha-1"]
+    |> Seq.map SemVer.parse
+    |> Seq.sort
+    |> Seq.map SemVer.toString
+let moreWant = ["1.0.0-alpha.1"; "1.0.0-alpha-1"; "1.0.0-rc.1"; "1.0.0"; "1.0.1-alpha"; "1.9.0"; "1.10.0"; "2.0.0-0"]
+if not (Seq.equal more moreWant) then fail $"sort: {more}"
+
+// bumps clear the lower parts and the prerelease; core is the release
+let pre = SemVer.parse "1.2.3-rc.1"
+expect "bumpMajor" (SemVer.toString (SemVer.bumpMajor pre)) "2.0.0"
+expect "bumpMinor" (SemVer.toString (SemVer.bumpMinor pre)) "1.3.0"
+expect "bumpPatch" (SemVer.toString (SemVer.bumpPatch pre)) "1.2.4"
+expect "core" (SemVer.toString (SemVer.core pre)) "1.2.3"
+expect "core of release" (SemVer.core (SemVer.parse "1.2.3")) (SemVer.parse "1.2.3")
+
+// refusals, byte-pinned; tryParse is None for each
+let refuses s want =
+    match SemVer.parse s |> try result with
+    | Ok v -> fail $"'{s}' parsed as {SemVer.toString v}; want the refusal: {want}"
+    | Error msg -> expect $"refusal '{s}'" msg want
+    expect $"tryParse '{s}'" (SemVer.tryParse s) None
+refuses "" "empty version"
+refuses "1.2" "'1.2' is not MAJOR.MINOR.PATCH"
+refuses "1.2.3.4" "'1.2.3.4' is not MAJOR.MINOR.PATCH"
+refuses "v1.2.3" "major 'v1' is not a number"
+refuses "1.2.3 " "patch '3 ' is not a number"
+refuses "01.2.3" "major '01' has a leading zero"
+refuses "1.02.3" "minor '02' has a leading zero"
+refuses "1.2.03" "patch '03' has a leading zero"
+refuses "1.2.-3" "patch '' is not a number"
+refuses "1.2.3-" "prerelease: empty identifier"
+refuses "1.2.3-alpha..1" "prerelease: empty identifier"
+refuses "1.2.3-alpha.01" "prerelease: numeric identifier '01' has a leading zero"
+refuses "1.2.3-al_pha" "prerelease: identifier 'al_pha' has a character outside [0-9A-Za-z-]"
+refuses "1.2.3-ä" "prerelease: identifier 'ä' has a character outside [0-9A-Za-z-]"
+refuses "1.2.3+" "build: empty identifier"
+refuses "1.2.3+a..b" "build: empty identifier"
+refuses "1.2.3+a_b" "build: identifier 'a_b' has a character outside [0-9A-Za-z-]"
+// the width limit: 18 digits parse, 19 refuse — core and prerelease alike
+refuses "1234567890123456789.0.0" "major '1234567890123456789' is longer than 18 digits"
+refuses "1.0.0-1234567890123456789" "prerelease: numeric identifier '1234567890123456789' is longer than 18 digits"
+expect "18-digit prerelease" (SemVer.tryParse "1.0.0-123456789012345678" |> Option.map SemVer.toString) (Some "1.0.0-123456789012345678")
+expect "tryParse ok" (SemVer.tryParse "1.2.3" |> Option.map SemVer.toString) (Some "1.2.3")
+
+print "semver: ok"
