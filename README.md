@@ -45,8 +45,7 @@ changelog: each tag's GitHub release notes name the modules it
 touched. There is no `latest`, no ranges and no branch to track —
 point at a tag.
 
-A module names the weir release it needs (`[<Ord n>]` arrived after
-v0.0.78); until that release exists, CI builds weir from its `main`.
+A module names the weir release it needs; CI runs the latest release.
 
 ## Contributing
 
