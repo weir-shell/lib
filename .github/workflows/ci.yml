@@ -2,6 +2,8 @@ name: ci
 
 on:
   push:
+    branches: ['**']
+    tags: ['*/v*']
   pull_request:
   workflow_dispatch:
 
@@ -15,3 +17,13 @@ jobs:
           curl -fsSL https://weir.sh/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: weir tools/test.weir
+  tag:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install weir
+        run: |
+          curl -fsSL https://weir.sh/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: weir tools/tag-check.weir

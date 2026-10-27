@@ -1,0 +1,35 @@
+#!/usr/bin/env weir
+// A release tag names one module: `<name>/v<semver>`, on a commit where
+// `modules/<name>.weir` exists. CI runs this on every tag push; by hand:
+//
+//     weir tools/tag-check.weir --tag semver/v0.1.1
+//
+// Without --tag the name comes from GITHUB_REF_NAME, which the workflow
+// sets to the pushed tag.
+
+type Cli = {
+    /// the tag to check (default: GITHUB_REF_NAME)
+    tag: Option<string>
+}
+
+let cli = Args.load Cli
+let root = Self.scriptPath |> Path.dir |> Path.dir
+
+let tag =
+    match cli.tag with
+    | Some t -> t
+    | None -> Env.need "GITHUB_REF_NAME"
+
+// the version is semver 2.0.0 after the module's `/v`: no leading zeros,
+// optional prerelease and build
+let name =
+    match tag with
+    | Regex @"^([A-Za-z][A-Za-z0-9_]*)/v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$" n -> n
+    | _ -> fail $"tag '{tag}' is not <name>/v<semver> — a release names one module: semver/v0.1.0"
+
+let file = $"modules/{name}.weir"
+
+if not (File.exists (Path.combine root file)) then
+    fail $"tag '{tag}' names the module '{name}', but {file} does not exist at this commit"
+
+print $"ok    {tag} releases {file}"

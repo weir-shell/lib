@@ -44,7 +44,23 @@ enforce, stated here so an author never discovers it at a user's
   green. Both files must be `weir check` clean and `weir fmt --check`
   clean.
 - **The PR adds a row to README's table** (`name | since | what`),
-  with `since` the tag that will carry it. A release is a tag.
+  with `since` the tag that will carry it (`<name>/v0.1.0`).
+
+## Releasing a module
+
+A release is a tag `<name>/v<semver>` on the commit that changes
+`modules/<name>.weir`: `semver/v0.1.0`, then `semver/v0.1.1` for a
+fix, `semver/v0.2.0` for a shape change. A tag names one module —
+a commit touching two modules gets two tags — and there is never a
+repo-wide tag: `weir add module <name>` picks the highest stable
+`<name>/v*` tag, so a tag without the module prefix is invisible to
+it. CI checks a pushed tag (`tools/tag-check.weir`): the shape, and
+that `modules/<name>.weir` exists at that commit.
+
+```text
+git tag semver/v0.1.1
+git push origin semver/v0.1.1
+```
 
 ## Running the checks
 
@@ -56,4 +72,5 @@ The runner uses the weir on `PATH` (CI installs the current release),
 runs `weir check` and `weir fmt --check` on every module and test,
 rejects a module with an `import` line, a module without a test and a
 test without a module, then runs each test. It prints one line per
-check and fails with the red count.
+check and fails with the red count. `weir tools/tag-check.weir --tag
+semver/v0.1.1` checks a release tag before it is pushed.
