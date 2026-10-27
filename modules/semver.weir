@@ -3,7 +3,7 @@ module SemVer
 // Semantic Versioning 2.0.0 (semver.org), precedence included. Pure:
 // no file, command, env or clock reaches any member.
 
-/// The prerelease. `Pre` carries the ORDER KEY built by `parse` (not the
+/// The prerelease. `Pre` carries the order key built by `parse` (not the
 /// text — `toString` decodes it); `Release` is no prerelease. Numbered so
 /// a prerelease sorts below its release.
 type Pre =
@@ -24,7 +24,7 @@ type SemVer = {
     build: Option<string>
 }
 
-// the key alphabet [D:lib-semver]: every marker sorts below every
+// the key alphabet: every marker sorts below every
 // identifier byte (`-` 0x2D is the lowest), and the number marker sorts
 // below the word marker, so ordinal order on keys is the spec's order
 let digits = 18

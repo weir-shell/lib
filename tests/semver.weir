@@ -68,7 +68,7 @@ versions
 expect "min" (Seq.min versions |> SemVer.toString) "1.0.0-alpha"
 expect "max" (Seq.max versions |> SemVer.toString) "1.0.0"
 
-// the core orders numerically; a prerelease sits below ITS release only
+// the core orders numerically; a prerelease sits below its release only
 let more =
     ["2.0.0-0"; "1.10.0"; "1.0.1-alpha"; "1.0.0"; "1.9.0"; "1.0.0-rc.1"; "1.0.0-alpha.1"; "1.0.0-alpha-1"]
     |> Seq.map SemVer.parse
